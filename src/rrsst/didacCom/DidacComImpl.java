@@ -72,7 +72,7 @@ public class DidacComImpl implements IDidacCom
     public void enviar(IDUDidacCom idu) 
             throws ExcepcionDidacCom, IllegalArgumentException
     {
-        int tries= 0;
+        /*int tries= 0;
         if (canal== null)
         {
             throw new ExcepcionDidacCom("No se ha abierto el canal");   
@@ -93,7 +93,113 @@ public class DidacComImpl implements IDidacCom
 	}catch(IOException e) 
         {
             throw new ExcepcionDidacCom("Ha habido un error");
-        }
+        }*/
+        
+        // Crear Datagrama UDP a enviar o recibir.
+	DatagramPacket UDP;
+	int reenvios = 0; //Contador de reenvios
+	boolean transCorrecta = false; //
+		
+	// Crear el stream contenedor de la PDU a enviar.
+	ByteArrayOutputStream baos = new ByteArrayOutputStream();
+	DataOutputStream filtroOut = new DataOutputStream(baos);
+	byte[] cont; //PDU sin código de verificación (hash)
+	byte[] PDU; //PDU a enviar
+				
+	// Crear el stream contenedor de la PDU de confirmación a recibir.
+	byte[] confirm = new byte[MIN_LONG_PDU]; //Confirmación de la PDU (ACK o NACK) por lo que será 18
+		
+	// Validar que el canal se ha creado.
+	try{
+	    if (canal == null)
+	    	throw new ExcepcionDidacCom("No se ha abierto el canal");   
+        
+	// Inicializar el contador de reenvíos.
+	    	
+		
+	// Validar que el parametro idu es correcto.
+	    if (idu == null)
+	    	throw new ExcepcionDidacCom("La IDU no es correcta.");
+
+	// Construir la PDU de datos del nivel DidacCom
+	// lanzando las excepciones oportunas
+	    if(idu.getLongDatos() < 0 || idu.getLongDatos() > MAX_DATOS_PDU)
+		throw new ExcepcionDidacCom("Longitud de datos de la PDU incorrecta");
+			
+	    filtroOut.writeByte(PDU_DATOS);
+	    filtroOut.write(idu.getLongDatos());
+	    filtroOut.write(idu.getDatos());
+	    filtroOut.flush();
+	    
+	    cont = baos.toByteArray();
+			
+	    if(cont.length < MIN_LONG_PDU || cont.length > MAX_LONG_PDU)
+		throw new ExcepcionDidacCom("Longitud de la PDU incorrecta");
+      	    if(GestorHash.generarHash(cont) == null)
+		throw new ExcepcionDidacCom("Código de verificación incorrecto");
+		
+	    filtroOut.write(cont);
+	    filtroOut.write(GestorHash.generarHash(cont));
+	    filtroOut.flush();
+			
+	    PDU = baos.toByteArray();	
+		
+	// Entrar en el bluce de envio y recepción
+	// Salir cuando se reciba un ACK (transmisión correcta)
+	// o cuando se haya sobrepasado el número máximo de reenvios
+	// por haber recibido sucesivos NACKs (transmisión incorrecta)
+		
+	// *******************************************************************************************
+		do{
+	
+		// Contruir el datagrama que contenga la PDU de datos del nivel DidacCom
+		// lanzando las excepciones oportunas
+			UDP = new DatagramPacket(PDU, PDU.length,InetAddress.getByName(idu.getDirIP()),idu.getPuertoUDP());
+	
+		// Enviar el datagrama a través del canal
+		// lanzando las excepciones oportunas
+			canal.send(UDP);
+				
+		// Contruir el datagrama que contendrá la PDU ACK o NACK procedente del servidor
+		// lanzando las excepciones oportunas	
+			DatagramPacket confirmacion = new DatagramPacket(confirm, MIN_LONG_PDU);
+			
+		// Recibir el datagrama de respuesta través del canal
+		// lanzando las excepciones oportunas
+			canal.receive(confirmacion);
+
+		
+		// Procesar la PDU recibida:
+			
+		// Comprobar que su longitud está dentro del rango permitido
+		// lanzando las excepciones oportunas
+
+			
+		// Crear el stream de entrada que contendrá los bytes de la PDU recibida
+
+			
+		// Comprobar que el hash de la PDU recibida es correcto
+		// lanzando las excepciones oportunas
+			
+		// Comprobar que tipo de la PDU recibida es correcto (debe ser ACK o NACK)
+		// lanzando las excepciones oportunas
+			
+		// Comprobar que la longitud del campo datos de la PDU recibida es coherente con el tipo de pdu
+		// lanzando las excepciones oportunas
+			
+		// *******************************************************************************************
+	    	}while(reenvios <= N_REINTENTOS && ! transCorrecta);
+			
+	    }catch(IOException e){}
+	    finally{
+		try {
+			if(filtroOut != null)
+				filtroOut.close();
+		} catch (IOException e){}
+	    }
+	    // Si finalmente se ha salido del bucle por "Transmisión incorrecta"
+	    // lanzar las excepciones oportunas
+        
         
     }
         
